@@ -1,5 +1,5 @@
 # USAGE
-# python detect_shapes.py --image shapes_and_colors.png
+# python detect_shapes.py --image gradient_basic.png
 
 # import the necessary packages
 from six import u
@@ -7,10 +7,21 @@ from pyimagesearch.shapedetector import ShapeDetector
 import argparse
 import imutils
 import cv2 as cv
+import numpy as np
 from numpy import array
 import openpyscad as ops
-def show(image):
-    cv.imshow("Image", image)
+
+import math
+import matplotlib.pyplot as plt
+
+from sklearn.datasets import make_blobs
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+
+def show(image,name="Image"):
+    image=image.astype(np.uint8)
+    cv.imshow(name, image)
 
 def get_tree(hier):
     tree={}
@@ -51,7 +62,9 @@ def clean_contours(hierarchy):
         
     cv.waitKey(0)
     return updateCnts , updateHierarchy
-
+#============================================================================================
+#INPUT
+#============================================================================================
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -61,25 +74,223 @@ args = vars(ap.parse_args())
 # load the image and resize it to a smaller factor so that
 # the shapes can be approximated better
 image = cv.imread(args["image"])
-image=cv.flip(image, 0)
-resized = imutils.resize(image, width=300)
+image=cv.flip(image, 0) #why flip????
+resized = imutils.resize(image, width=400)
 ratio = image.shape[0] / float(resized.shape[0])
 
+#==========================================================================================
+#FILTER
+#==========================================================================================
 # convert the resized image to grayscale, blur it slightly,
 # and threshold it
-gray = cv.cvtColor(resized, cv.COLOR_BGR2GRAY)
-show(gray)
-cv.waitKey(0)
-blurred = cv.GaussianBlur(gray, (11 , 11), 0)
-show(blurred)
-cv.waitKey(0)
+fa = [[],[]]
+gray = cv.cvtColor(resized, cv.COLOR_BGR2GRAY).astype(np.float32)
+fa[0].append(gray)
+fa[1].append("gray")
 
-thresh = cv.adaptiveThreshold(blurred, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,21,2)
+if True:
+    i = 21
+#for i in range(21,62, 20):
+    gradient = cv.GaussianBlur(gray, (i , i), 0)
 
-show(thresh)
-cv.waitKey(0)
-# find contours in the thresholded image and initialize the
-# shape detector
+    gradRemove=cv.divide(gray,gradient)
+    gradRemove = cv.normalize(gradRemove,None,0,255,cv.NORM_MINMAX)
+    
+    fa[0].append(gradRemove)
+    fa[1].append("gradient remove")
+
+    b=25
+    bilat=cv.bilateralFilter(gradRemove, 9, b, b, cv.BORDER_DEFAULT)
+    fa[0].append(bilat)
+    fa[1].append("bilat")
+    
+    g=5
+    blur = cv.GaussianBlur(bilat, (g , g), 0)
+    fa[0].append(blur)
+    fa[1].append("gauss")
+    
+    grad = np.gradient(blur)
+    grad=np.hypot(grad[0],grad[1])
+    grad = cv.normalize(grad,None,0,255,cv.NORM_MINMAX)
+    fa[0].append(grad)
+    fa[1].append("grad")
+    filter=blur.astype(np.uint8)
+    
+    #blur=blur.astype(np.uint8)
+    #equal = cv.equalizeHist(blur)
+    #show( equal ,"equal" + str(i))
+    #cv.waitKey(0)
+    #filter=equal.astype(np.uint8)
+    
+    ret,thresh1 = cv.threshold(blur,127,255,cv.THRESH_BINARY)
+    
+for i in range(len(fa[0])):
+    r=3
+    #plt.subplot(int(np.ceil(len(fa[0])/r)),r,i+1),#plt.imshow(fa[0][i],'gray',vmin=0,vmax=255)
+    #plt.title(fa[1][i])
+    #plt.xticks([]),#plt.yticks([])
+#plt.show()    
+    
+
+#=============================================================================
+#Edge Detection
+#=============================================================================
+#Before locating edges with Canny Edge, need to determine a way to decide on threshold  values
+#Lets try looking at the histogram #http://www.sci.utah.edu/~acoste/uou/Image/project1/Arthur_COSTE_Project_1_report.html
+fa = [[],[]]
+fa[0].append(gray)
+fa[1].append("gray")
+hist = cv.calcHist([filter],[0],None,[256],[0,256])
+
+estwp=(np.where(grad<(55)))
+estwp=len(estwp[0])
+
+estbp=(np.where(grad>(200)))
+estbp=len(estbp[0])
+
+sumpixels=sum(hist)[0]
+sumhist=0
+midintensity=[]
+
+for i in range(0,256,1):
+    sumhist = sumhist + hist[i]
+    if sumhist>estbp :
+        midintensity.append(i)
+        break
+sumhist=0
+for i in range(255,-1,-1):
+    sumhist = sumhist + hist[i]
+    if sumhist>estwp:
+        midintensity.append(i)
+        break
+    
+histnorm=np.divide(hist,sum(hist))
+histnorm=histnorm[:,0]
+
+
+x=list(range(0,256))
+#plt.bar(x,histnorm)
+#plt.plot(midintensity,np.array([histnorm[midintensity[0]], histnorm[midintensity[1]]]), 'o')
+#plt.show()
+np.column_stack((x, histnorm))
+
+edges = cv.Canny(filter,midintensity[0],midintensity[1])
+fa[0].append(edges)
+fa[1].append("canny edge")
+i=5
+closing = cv.morphologyEx(edges, cv.MORPH_CLOSE,  cv.getStructuringElement(cv.MORPH_RECT,(i,i)))
+fa[0].append(closing)
+fa[1].append("close morph" + str(i))
+opening = cv.morphologyEx(closing, cv.MORPH_OPEN,  cv.getStructuringElement(cv.MORPH_RECT,(3,3)))
+fa[0].append(opening)
+fa[1].append("open morph" + str(3))
+erosion = cv.erode(opening,cv.getStructuringElement(cv.MORPH_RECT,(3,3)),iterations = 1)
+fa[0].append(erosion)
+fa[1].append("erode morph")
+for i in range(len(fa[0])):
+    r=3
+    #plt.subplot(int(np.ceil(len(fa[0])/r)),r,i+1),#plt.imshow(fa[0][i],'gray',vmin=0,vmax=255)
+    #plt.title(fa[1][i])
+    #plt.xticks([]),#plt.yticks([])
+#plt.show() 
+
+#======================================================================================
+#Finding Shapes/Lines
+#======================================================================================
+fa = [[],[]]
+fa[0].append(gray)
+fa[1].append("gray")
+
+cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+#cv.imshow("Source", cdstP)
+j=19
+if j:
+#for j in range(7,25,3):
+    linesP = cv.HoughLinesP(erosion, j , np.pi / 180 , 50, None, 15, 10)
+    
+    if linesP is not None:
+        for i in range(0, len(linesP)):
+            l = linesP[i][0]
+            cv.line(cdstP, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2 , cv.LINE_AA)
+    
+    plt.subplot(1, 4, 1)
+    plt.title(j)
+    plt.imshow(cdstP)
+    linesP=np.array(linesP)
+    centers=[(linesP[:,0,2]+linesP[:,0,0])//2,(linesP[:,0,3]+linesP[:,0,1])//2]
+    centers=np.swapaxes(centers, 0, 1)
+    centers=np.squeeze(centers)
+    ax1=plt.subplot(1, 4, 2)
+    ax1.scatter(centers[:,0], centers[:,1],c='b')
+    ax1.axis("equal")
+    
+    directions=[(linesP[:,0,2]-linesP[:,0,0]),(linesP[:,0,3]-linesP[:,0,1])]
+    directions=np.swapaxes(directions, 0, 1)
+    directions=np.squeeze(directions)
+    plt.subplot(1, 4, 3)
+    for i in range(0, len(centers)):
+        plt.axis("equal")
+        plt.quiver(centers[i,0], centers[i,1],directions[i,0], directions[i,1])
+    plt.subplot(1, 4, 4)
+    plt.scatter(linesP[:,0,0], linesP[:,0,1],c='r')
+    plt.scatter(linesP[:,0,2], linesP[:,0,3],c='r')
+    plt.axis("equal")
+    plt.show()
+
+    magnitudes=np.hypot(directions[:,0],directions[:,1])
+    mi=np.flip(np.argsort(magnitudes)) #magnitude index from  largest to smallest 
+    #group lines by direction of lines
+    linesH=np.squeeze(linesP)
+    #linesF[index,0=lines,1=center x,y , 2=direction x,y]
+    lli=mi[0]#largestLineIndex
+    groupLinesIndexes=[[lli]]
+    mi=np.delete(mi,0,0)
+    r_linesH=np.delete(linesH,lli,0)
+    r_centers=np.delete(centers,lli,0)
+    r_directions=np.delete(directions,lli,0)
+    
+    i = len(r_linesH)-1
+    #lets go through all the lines
+
+    while len(r_linesH)>0:
+        line=r_linesH[i]
+        center=r_centers[i]
+        direction=r_directions[i]
+        r_linesH=np.delete(r_linesH,i,0)
+        r_centers=np.delete(r_centers,i,0)
+        r_directions=np.delete(r_directions,i,0)
+        
+        for l in groupLinesIndexes:
+            #lets compare the angle between the lines
+
+            x=np.dot(direction,np.squeeze(directions[l]))
+            y=np.dot(np.hypot(direction[0],direction[1]), np.hypot(directions[l,0],directions[l,1]))
+            x=x/y
+            ang=np.arccos(x)*180/np.pi
+            if ang>90:
+                ang=abs(180-ang)
+            print("ang: " + str(ang))
+            #print("angle: " + str(ang))
+            if ang<15: #potentially part of same line 
+                #TODO: Check for path between points in direction of gradient instead of this
+            #distance between a point and line
+            #c=yb-xa    
+                c=linesH[l,1]*directions[l,0] - linesH[l,0]*(directions[l,1])
+                eq_top=abs(directions[l,1]*center[0]-directions[l,0]*center[1]+c)#Am + Bn + C
+                mag=np.hypot(directions[l,0],directions[l,1])
+                d=eq_top/mag #this isn't reliable because as the point is farther away this line could be incorrect
+                if d < 20: #This is classfied as a potential match
+                    groupLinesIndex              
+        i=i-1    
+            
+            
+            
+
+
+exit()
+#======================================================================================
+#Create CAD
+#======================================================================================
 cnts = cv.findContours(thresh.copy(), cv.RETR_TREE	,
     cv.CHAIN_APPROX_SIMPLE)
 
@@ -90,33 +301,7 @@ sd = ShapeDetector()
 cnts, hierarchy=clean_contours(hierarchy)
 
 roots,tree = get_tree(hierarchy)
-#
-#parents=tree.keys()
-#duplicates=[]
-#for p in parents:
-#	if len(tree.get(p)) == 1: #We have found a potnetial duplicate
-#		print(tree.get(p))
-#		c=cnts[tree.get(p)[0]]
-#		peri = cv.arcLength(c, True)
-#		approx = cv.approxPolyDP(c, 0.04 * peri, True)
-#		(x1, y1, w1, h1) = cv.boundingRect(approx)
-#		
-#		c=cnts[p]
-#		peri = cv.arcLength(c, True)
-#		approx = cv.approxPolyDP(c, 0.04 * peri, True)
-#		(x2, y2, w2, h2) = cv.boundingRect(approx)
-#		#(x, y, w, h)=abs(x2/x1-1), abs(y2/y1-1), abs(w2/w1-1), abs(h2/h1-1) 
-#		(x, y, w, h)=abs(x2-x1), abs(y2-y1), abs(w2-w1), abs(h2-h1) 
-#		#if w<=0.2 and y<=0.2: #we found a duplicate
-#		if w<=10 and h<=10: #we found a duplicate
-#				#list child for deletion
-#			duplicates.append(h)
-#			print("found!")
-#duplicates.sort(reverse=True)	
-#for d in duplicates:
-#	del cnts[d] 
-#	
-#
+
 cv.destroyAllWindows() 
 #image = cv.imread(args["image"])     
 # loop over the contours
