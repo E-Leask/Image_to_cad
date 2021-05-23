@@ -197,7 +197,7 @@ for i in range(len(fa[0])):
 #plt.show() 
 
 #======================================================================================
-#Finding Shapes/Lines
+#Finding Lines
 #======================================================================================
 fa = [[],[]]
 fa[0].append(gray)
@@ -205,10 +205,10 @@ fa[1].append("gray")
 
 cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
 #cv.imshow("Source", cdstP)
-j=19
-#if j:
-for j in range(1,52,10):
-    linesP = cv.HoughLinesP(image=erosion, rho=j , theta=(np.pi / (180)), threshold=50,minLineLength=2, maxLineGap=5)
+j=1
+if j:
+#for j in range(1,52,10):
+    linesP = cv.HoughLinesP(image=erosion, rho=j , theta=(np.pi / (180)/8), threshold=25 ,minLineLength=2, maxLineGap=5)
     cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
     if linesP is not None:
         for i in range(0, len(linesP)):
@@ -295,11 +295,11 @@ for j in range(1,52,10):
             i=i-1    
         lineGroup=[r_linesH[index] for index in groupLinesIndexes]
         cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
-        for i in range(0, len(lineGroup)):
-            li = lineGroup[i]
-            cv.line(cdstP, (li[0], li[1]), (li[2], li[3]), (0,0,255), 2 , cv.LINE_AA)
-            plt.imshow(cdstP)
-        plt.show()
+#        for i in range(0, len(lineGroup)):
+#            li = lineGroup[i]
+#            cv.line(cdstP, (li[0], li[1]), (li[2], li[3]), (0,0,255), 2 , cv.LINE_AA)
+#            plt.imshow(cdstP)
+#        plt.show()
         coordGroup=np.reshape(lineGroup,(-1, 2))
         maxCoords=[coordGroup[0],coordGroup[1]]
         coordGroup=np.delete(coordGroup,[0,1],0)
@@ -316,15 +316,27 @@ for j in range(1,52,10):
                 maxCoords[0]=coordGroup[i]
         lineSet.append(maxCoords)
         cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
-        cv.line(cdstP, (maxCoords[0][0], maxCoords[0][1]), (maxCoords[1][0], maxCoords[1][1]), (0,255,0), 2 , cv.LINE_AA)
-        plt.imshow(cdstP)
-        plt.show()
-                
-            
-            
+#        cv.line(cdstP, (maxCoords[0][0], maxCoords[0][1]), (maxCoords[1][0], maxCoords[1][1]), (0,255,0), 2 , cv.LINE_AA)
+#        plt.imshow(cdstP)
+#        plt.show()
 
+#======================================================================================
+#Connecting Points
+#======================================================================================
+#List of lines
 print(lineSet)
+
+#List of points
+pointSet=np.reshape(lineSet,(-1,2))
+print(pointSet)
 exit()
+def check_same_point(point_a, point_b, max_dist):
+    sq_dist=distance.sqeuclidean(point_a,point_b)
+    if sq_dist > max_dist^2:
+        return False
+    return True
+        
+
 #======================================================================================
 #Create CAD
 #======================================================================================
