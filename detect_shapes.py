@@ -62,6 +62,12 @@ def clean_contours(hierarchy):
         
     cv.waitKey(0)
     return updateCnts , updateHierarchy
+
+def check_same_point(point_a, point_b, max_dist):
+    sq_dist=distance.sqeuclidean(point_a,point_b)
+    if sq_dist > max_dist**2:
+        return False
+    return True
 #============================================================================================
 #INPUT
 #============================================================================================
@@ -324,18 +330,48 @@ if j:
 #Connecting Points
 #======================================================================================
 #List of lines
-print(lineSet)
-
+lineSet=np.array(lineSet)
 #List of points
 pointSet=np.reshape(lineSet,(-1,2))
-print(pointSet)
+pointSet = np.unique(pointSet, axis=0)
+max_distance=10
+#for point1 in pointSet:
+i=len(pointSet)-1
+while i >= 0:
+    point1=pointSet[i]    
+    j=len(pointSet)-1
+    while j >= 0:
+        point2=pointSet[j]
+        #matching_point=point1 == point2
+        #if matching_point.all():
+        if i == j:
+            j=j-1
+            continue
+        #for point2 in pointSet[point1 != point2]:
+        if check_same_point(point1,point2,max_distance):
+            for idx, line in enumerate(lineSet):
+                for idy, point in enumerate(line):
+                    matching_point= point2 == point
+                    if matching_point.all():
+                        lineSet[idx,idy]=point1
+                        pointSet = np.delete(pointSet,j,0)
+            j=j-1
+            i=i-1
+        j=j-1
+    i=i-1
+print("Final;ized line set \n")
+print(lineSet)
+
+cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(cdstP, (li0[0], li0[1]), (li1[0], li1[1]), (0,0,255), 2 , cv.LINE_AA)
+    plt.imshow(cdstP)
+plt.show()            
+  
 exit()
-def check_same_point(point_a, point_b, max_dist):
-    sq_dist=distance.sqeuclidean(point_a,point_b)
-    if sq_dist > max_dist^2:
-        return False
-    return True
-        
+
 
 #======================================================================================
 #Create CAD
