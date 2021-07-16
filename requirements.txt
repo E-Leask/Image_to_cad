@@ -6,3 +6,4 @@ six==1.15.0
 numpy==1.19.2
 openpyscad==0.4.0
 scikit_learn==0.24.2
+sympy==1.8

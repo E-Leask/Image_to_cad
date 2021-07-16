@@ -2,8 +2,8 @@
 # python detect_shapes.py --image gradient_basic.png
 
 # import the necessary packages
-from six import u
-from pyimagesearch.shapedetector import ShapeDetector
+#from six import u
+#from pyimagesearch.shapedetector import ShapeDetector
 import argparse
 import imutils
 import cv2 as cv
@@ -14,10 +14,14 @@ from scipy.spatial import distance
 import math
 import matplotlib.pyplot as plt
 
-from sklearn.datasets import make_blobs
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler
+#from sklearn.datasets import make_blobs
+#from sklearn.cluster import KMeans
+#from sklearn.metrics import silhouette_score
+#from sklearn.preprocessing import StandardScaler
+
+from sympy import *
+
+
 
 def show(image,name="Image"):
     image=image.astype(np.uint8)
@@ -68,6 +72,76 @@ def check_same_point(point_a, point_b, max_dist):
     if sq_dist > max_dist**2:
         return False
     return True
+
+def check_point_intersects(point_c, line, max_dist):
+    point_a=line[0]
+    point_b=line[1]
+    if np.all(point_c==point_a) or np.all(point_c==point_b):
+        return False 
+    #dist=(np.abs(np.cross(point_b-point_a, point_a-point_c)) / np.norm(point_b-point_a))
+    if point_a[0]==point_b[0]:
+        ab_line=[10000000,0]
+    else:
+        ab_line=[(point_a[1]-point_b[1])/(point_a[0]-point_b[0]),0]
+    ab_line[1]=point_a[1]+(ab_line[0]*-point_a[0])
+    if ab_line[0]==0:
+        c_line=[0.000000001,0]
+    else:
+        c_line=[-1/ab_line[0],0]
+    c_line[1]=point_c[1]+((c_line[0])*-point_c[0])
+    
+    
+    x, y= symbols('x y')
+    int_point,=linsolve([-y + ab_line[0]*x + ab_line[1],-y + c_line[0]*x + c_line[1]],(x,y))
+    int_point=np.asarray(int_point, dtype=float)
+    if int_point[0]<=point_a[0] and int_point[0]<=point_b[0] or int_point[1]<=point_a[1] and int_point[1]<=point_b[1]:
+        return False
+    
+    dist=np.hypot((int_point[0]-point_c[0]),(int_point[1]-point_c[1]))
+    if dist > max_dist:
+        return False
+    return True
+
+def check_line_intersects(line1, line2, max_dist):
+    point_a=line2[0]
+    point_b=line2[1]
+    point_c=line1[0]
+    point_d=line1[1]
+    
+    #if there is a duplicate point the lines are connnected
+    if np.all(point_c==point_a) or np.all(point_c==point_b):
+        return None
+    if np.all(point_d==point_a) or np.all(point_d==point_b):
+        return None 
+    #dist=(np.abs(np.cross(point_b-point_a, point_a-point_c)) / np.norm(point_b-point_a))
+    
+    #slope edge cases
+    if point_a[0]==point_b[0]:
+        ab_line=np.array([10000000,0],dtype=np.longlong)
+    else:
+        ab_line=np.array([(point_a[1]-point_b[1])/(point_a[0]-point_b[0]),0],dtype=np.longlong)
+    ab_line[1]=point_a[1]+(ab_line[0]*-point_a[0])
+    
+    if point_c[0]==point_d[0]:
+        cd_line=np.array([10000000,0],dtype=np.longlong)
+    else:
+        cd_line=np.array([(point_c[1]-point_d[1])/(point_c[0]-point_d[0]),0],dtype=np.longlong)
+    cd_line[1]=point_c[1]+(cd_line[0]*-point_c[0])
+    
+    #Check if lines are parallel
+    if np.all(ab_line[0]==cd_line[0]):
+        return None 
+    
+    x, y= symbols('x y')
+    int_point,=linsolve([-y + ab_line[0]*x + ab_line[1],-y + cd_line[0]*x + cd_line[1]],(x,y))
+    int_point=np.asarray(int_point, dtype=np.intc)
+    if int_point[0]<=point_a[0] and int_point[0]<=point_b[0] or int_point[1]<=point_a[1] and int_point[1]<=point_b[1]:
+        return None
+    
+    dist=np.hypot((int_point[0]-point_c[0]),(int_point[1]-point_c[1]))
+    if dist > max_dist:
+        return None
+    return int_point
 #============================================================================================
 #INPUT
 #============================================================================================
@@ -327,7 +401,7 @@ if j:
 #        plt.show()
 
 #======================================================================================
-#Connecting Points
+#Connecting Points/Lines
 #======================================================================================
 #List of lines
 lineSet=np.array(lineSet)
@@ -335,20 +409,33 @@ lineSet=np.array(lineSet)
 pointSet=np.reshape(lineSet,(-1,2))
 pointSet = np.unique(pointSet, axis=0)
 max_distance=10
+bfcp = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(bfcp, (li0[0], li0[1]), (li1[0], li1[1]), (0,i*20,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,1)
+plt.imshow(bfcp)
+
+
+#FIND CONNECTED POINTS
 #for point1 in pointSet:
 i=len(pointSet)-1
-while i >= 0:
+while i >= 0: #Until I run out of points in the pointSet
     point1=pointSet[i]    
     j=len(pointSet)-1
-    while j >= 0:
-        point2=pointSet[j]
+    while j >= 0: #Until there are no other points
+        point2=pointSet[j] 
         #matching_point=point1 == point2
         #if matching_point.all():
-        if i == j:
+        if i == j: #skip points if they have the same index
             j=j-1
             continue
-        #for point2 in pointSet[point1 != point2]:
+        
+        #if two points are close enough to be a single point we return true
         if check_same_point(point1,point2,max_distance):
+            #lets replace each instances of point2 with point1 
+            #POTENTIAL BUGS
             for idx, line in enumerate(lineSet):
                 for idy, point in enumerate(line):
                     matching_point= point2 == point
@@ -356,20 +443,90 @@ while i >= 0:
                         lineSet[idx,idy]=point1
                         pointSet = np.delete(pointSet,j,0)
             j=j-1
-            i=i-1
+            i=i-1      
         j=j-1
+    i=i-1
+    
+cp = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(cp, (li0[0], li0[1]), (li1[0], li1[1]), (0,20*i,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,2)
+plt.imshow(cp)
+ 
+#FIND POINT INTERSECTING LINE  
+i=len(pointSet)-1
+while i >= 0: #Until I run out of points in the pointSet
+    point1=pointSet[i]    
+    #A point may potentially be intersecting with the line instead of endpoint    
+    for idx,line in enumerate(lineSet):
+        if check_point_intersects(point1,line,max_distance/2):
+        #we break the line into line A and line B with endpoint pA<->p1 and p1<->pB
+            div_line=np.asarray(line)
+            l_index=np.argwhere(lineSet==div_line)
+            line_a=[div_line[0],point1]
+            line_b=[div_line[1],point1]
+            #overwriting lines
+            lineSet[idx]=line_a
+            print (type(lineSet))
+            lineSet=np.concatenate((lineSet,[line_b]))
+            print(type(lineSet))
+    i=i-1
+
+elc = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(elc, (li0[0], li0[1]), (li1[0], li1[1]), (20*i,0,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,3)
+plt.imshow(elc) 
+
+#FIND LINE INTERSECTING LINE
+i=len(lineSet)-1
+while i >= 0: #Until I run out of points in the pointSet
+    line1=lineSet[i]    
+    #A point may potentially be intersecting with the line instead of endpoint    
+    for idx,line in enumerate(lineSet):
+        int_point = check_line_intersects(line1,line,max_distance/2)
+        if np.all(int_point !=None):
+        #we break the line into line A and line B with endpoint pA<->p1 and p1<->pB
+            div_line=np.asarray(line)
+            l_index=np.argwhere(lineSet==div_line)
+            line_a=np.array([div_line[0],int_point])
+            line_b=np.array([div_line[1],int_point])
+            line_c=np.array([line1[0],int_point])
+            line_d=np.array([line1[1],int_point])
+            
+            #overwriting lines
+            lineSet[idx]=line_a
+            lineSet[i]=line_c
+            line1=line_c
+            print (type(lineSet))
+            print(lineSet.dtype)
+            print(line_b.dtype)
+            lineSet=np.concatenate((lineSet,[line_b]))
+            lineSet=np.concatenate((lineSet,[line_c]))
+            print(type(lineSet))
     i=i-1
 print("Final;ized line set \n")
 print(lineSet)
 
-cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+cil = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
-    cv.line(cdstP, (li0[0], li0[1]), (li1[0], li1[1]), (0,0,255), 2 , cv.LINE_AA)
-    plt.imshow(cdstP)
-plt.show()            
-  
+    cv.line(cil, (li0[0], li0[1]), (li1[0], li1[1]), (0,40*i,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,4)
+plt.imshow(cil) 
+plt.show()
+cil = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(cil, (li0[0], li0[1]), (li1[0], li1[1]), (0,40*i,255), 2 , cv.LINE_AA)       
+    plt.imshow(cil) 
+    plt.show()
 exit()
 
 

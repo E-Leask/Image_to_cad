@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["--image","gradient_basic.png"]
+            "args": ["--image","4sq.jpg"]
         }
     ]
 }
