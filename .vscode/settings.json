@@ -1,3 +1,16 @@
 {
-    "python.pythonPath": "C:\\Users\\Eric\\AppData\\Local\\Programs\\Python\\Python37\\python.exe"
+    "python.pythonPath": "C:\\Users\\Eric\\AppData\\Local\\Programs\\Python\\Python37\\python.exe",
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/.vscode": true,
+        ".vscode": true,
+        "*.jpg": true,
+        "*.png": true,
+        "**/*.png": true
+    },
+    "explorerExclude.backup": null
 }

@@ -13,7 +13,8 @@ import openpyscad as ops
 from scipy.spatial import distance
 import math
 import matplotlib.pyplot as plt
-
+from shapedetector import *
+from vertex import *
 #from sklearn.datasets import make_blobs
 #from sklearn.cluster import KMeans
 #from sklearn.metrics import silhouette_score
@@ -258,38 +259,184 @@ edges = cv.Canny(filter,midintensity[0],midintensity[1])
 fa[0].append(edges)
 fa[1].append("canny edge")
 i=5
+#cv.imshow("edges", edges)
+#cv.waitKey(0)
 closing = cv.morphologyEx(edges, cv.MORPH_CLOSE,  cv.getStructuringElement(cv.MORPH_RECT,(i,i)))
 fa[0].append(closing)
 fa[1].append("close morph" + str(i))
-opening = cv.morphologyEx(closing, cv.MORPH_OPEN,  cv.getStructuringElement(cv.MORPH_RECT,(3,3)))
-fa[0].append(opening)
-fa[1].append("open morph" + str(3))
-erosion = cv.erode(opening,cv.getStructuringElement(cv.MORPH_RECT,(3,3)),iterations = 1)
-fa[0].append(erosion)
-fa[1].append("erode morph")
+#cv.imshow("clsoing", closing)
+#cv.waitKey(0)
+#opening = cv.morphologyEx(closing, cv.MORPH_OPEN,  cv.getStructuringElement(cv.MORPH_RECT,(3,3)))
+#fa[0].append(opening)
+#fa[1].append("open morph" + str(3))
+#cv.imshow("Image", opening)
+#cv.waitKey(0)
+#erosion = cv.erode(opening,cv.getStructuringElement(cv.MORPH_RECT,(3,3)),iterations = 1)
+#fa[0].append(erosion)
+#fa[1].append("erode morph")
 #erosion  = cv.morphologyEx(erosion, cv.MORPH_OPEN,  cv.getStructuringElement(cv.MORPH_RECT,(3,3)))
-
-for i in range(len(fa[0])):
-    r=3
+thresh=closing
+#for i in range(len(fa[0])):
+#    r=3
     #plt.subplot(int(np.ceil(len(fa[0])/r)),r,i+1),#plt.imshow(fa[0][i],'gray',vmin=0,vmax=255)
     #plt.title(fa[1][i])
     #plt.xticks([]),#plt.yticks([])
 #plt.show() 
 
 #======================================================================================
+#Find Contours
+#======================================================================================
+cnts, hierarchy = cv.findContours(thresh.copy(), cv.RETR_TREE,
+	cv.CHAIN_APPROX_SIMPLE)
+hierarchy=hierarchy[0]
+#cnts = imutils.grab_contours(cnts)
+sd = ShapeDetector()
+# loop over the contours
+print(type(cnts))
+for c in cnts:
+	# compute the center of the contour, then detect the name of the
+	# shape using only the contour
+	M = cv.moments(c)
+	cX = int((M["m10"] / M["m00"]) * ratio)
+	cY = int((M["m01"] / M["m00"]) * ratio)
+	shape = sd.detect(c)
+
+	# multiply the contour (x, y)-coordinates by the resize ratio,
+	# then draw the contours and the name of the shape on the image
+	c = c.astype("float")
+	c *= ratio
+	c = c.astype("int")
+	#cv.drawContours(image, [c], -1, (0, 255, 0), 2)
+	#cv.putText(image, shape, (cX, cY), cv.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 2)
+
+	# show the output image
+	#cv.imshow("contours", image)
+	#cv.waitKey(0)
+
+print("test")
+simplified_contours=[]
+for c in cnts:
+    peri = cv2.arcLength(c, True)
+    approx = cv2.approxPolyDP(c, 0.1 * peri, True)
+    simplified_contours.append(approx)
+#Ok so I have all of these shapes that represent the shapes and will give information about inner data                       
+#We need to simplify the data by estimating the polynomial.
+#[Next, Previous, First_Child, Parent]
+roots=[idx for idx, h in enumerate(hierarchy) if h[3]==-1]
+
+
+#start with the outer most shape(we will deal with multiple shapes later)
+#given the outer contour group of an object
+#make our tree with how the hierarchy is connected
+#[Next, Previous, First_Child, Parent]
+#for r in roots:
+r=roots[0]
+children=[idx for idx, h in enumerate(hierarchy) if h[3]==r]
+max_distance=10
+#Working with simplified contours [contour_index, line_index, point_index]
+#FIND CONNECTED POINTS
+#for point1 in pointSet:
+
+child_i=len(children)-1
+while child_i > 0: #grab a child
+    child=children[child_i]
+    ch_l = len(child)-1
+    i=child_i-1
+    while i>=0: #grab other children
+        compare=children[i]
+        co_l= len(compare)-1
+        while ch_l>=0:
+            point1=child[ch_l]
+            while co_l>=0:
+                point2=compare[co_l] 
+                if check_same_point(point1,point2,max_distance):
+                    point2=point1    
+                co_l=co_l-1
+            ch_l=ch_l-1
+        i=i-1
+    child_i=child_i-1
+         
+child_i=len(children)-1
+i=child_i-1
+while child_i > 0: #grab a child
+    child=children[child_i]
+    ch_l = len(child)-1
+    i = len(children)-1
+    while i>=0: #grab other children
+        if i == child_i:
+            i=i-1
+            continue
+        compare=children[i]
+        co_l= len(compare)-1
+        while ch_l>=0:
+            point1=child[ch_l]
+            while co_l>=0:
+                
+                co_l=co_l-1
+            ch_l=ch_l-1
+        i=i-1
+    child_i=child_i-1
+        
+        
+     
+        
+
+   
+cp = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(cp, (li0[0], li0[1]), (li1[0], li1[1]), (0,20*i,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,2)
+plt.imshow(cp)
+
+#FIND POINT INTERSECTING LINE  
+i=len(pointSet)-1
+while i >= 0: #Until I run out of points in the pointSet
+    point1=pointSet[i]    
+    #A point may potentially be intersecting with the line instead of endpoint    
+    for idx,line in enumerate(lineSet):
+        if check_point_intersects(point1,line,max_distance/2):
+        #we break the line into line A and line B with endpoint pA<->p1 and p1<->pB
+            div_line=np.asarray(line)
+            l_index=np.argwhere(lineSet==div_line)
+            line_a=[div_line[0],point1]
+            line_b=[div_line[1],point1]
+            #overwriting lines
+            lineSet[idx]=line_a
+            print (type(lineSet))
+            lineSet=np.concatenate((lineSet,[line_b]))
+            print(type(lineSet))
+    i=i-1
+
+elc = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
+for i in range(0, len(lineSet)):
+    li0 = lineSet[i,0]
+    li1 = lineSet[i,1]
+    cv.line(elc, (li0[0], li0[1]), (li1[0], li1[1]), (20*i,0,255), 2 , cv.LINE_AA)
+plt.subplot(1,4,3)
+plt.imshow(elc)       
+
+
+
+
+
+exit()
+#======================================================================================
 #Finding Lines
 #======================================================================================
+
 fa = [[],[]]
 fa[0].append(gray)
 fa[1].append("gray")
 
-cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+cdstP = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 #cv.imshow("Source", cdstP)
 j=1
 if j:
 #for j in range(1,52,10):
-    linesP = cv.HoughLinesP(image=erosion, rho=j , theta=(np.pi / (180)/8), threshold=25 ,minLineLength=2, maxLineGap=5)
-    cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+    linesP = cv.HoughLinesP(image=edge_detect, rho=j , theta=(np.pi / (180)/8), threshold=25 ,minLineLength=2, maxLineGap=5)
+    cdstP = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
     if linesP is not None:
         for i in range(0, len(linesP)):
             l = linesP[i][0]
@@ -374,7 +521,7 @@ if j:
             #Now that i have the group of lines I need to make the largest line             
             i=i-1    
         lineGroup=[r_linesH[index] for index in groupLinesIndexes]
-        cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+        cdstP = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 #        for i in range(0, len(lineGroup)):
 #            li = lineGroup[i]
 #            cv.line(cdstP, (li[0], li[1]), (li[2], li[3]), (0,0,255), 2 , cv.LINE_AA)
@@ -395,7 +542,7 @@ if j:
             elif max_sol==2:#b<->c is max so replace a with c in maxCoords
                 maxCoords[0]=coordGroup[i]
         lineSet.append(maxCoords)
-        cdstP = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+        cdstP = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 #        cv.line(cdstP, (maxCoords[0][0], maxCoords[0][1]), (maxCoords[1][0], maxCoords[1][1]), (0,255,0), 2 , cv.LINE_AA)
 #        plt.imshow(cdstP)
 #        plt.show()
@@ -409,7 +556,7 @@ lineSet=np.array(lineSet)
 pointSet=np.reshape(lineSet,(-1,2))
 pointSet = np.unique(pointSet, axis=0)
 max_distance=10
-bfcp = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+bfcp = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
@@ -447,7 +594,7 @@ while i >= 0: #Until I run out of points in the pointSet
         j=j-1
     i=i-1
     
-cp = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+cp = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
@@ -474,7 +621,7 @@ while i >= 0: #Until I run out of points in the pointSet
             print(type(lineSet))
     i=i-1
 
-elc = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+elc = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
@@ -512,7 +659,7 @@ while i >= 0: #Until I run out of points in the pointSet
 print("Final;ized line set \n")
 print(lineSet)
 
-cil = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+cil = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
@@ -520,7 +667,7 @@ for i in range(0, len(lineSet)):
 plt.subplot(1,4,4)
 plt.imshow(cil) 
 plt.show()
-cil = cv.cvtColor(erosion, cv.COLOR_GRAY2BGR)
+cil = cv.cvtColor(edge_detect, cv.COLOR_GRAY2BGR)
 for i in range(0, len(lineSet)):
     li0 = lineSet[i,0]
     li1 = lineSet[i,1]
@@ -533,8 +680,7 @@ exit()
 #======================================================================================
 #Create CAD
 #======================================================================================
-cnts = cv.findContours(thresh.copy(), cv.RETR_TREE	,
-    cv.CHAIN_APPROX_SIMPLE)
+
 
 hierarchy=cnts[1]
 #[Next, Previous, First_Child, Parent]
