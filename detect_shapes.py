@@ -350,12 +350,14 @@ while child_i > 0: #grab a child
             while co_l>=0:
                 point2=compare[co_l] 
                 if check_same_point(point1,point2,max_distance):
-                    point2=point1    
+                    point2=point1
+                    point1=[np.mean(point1[0],point2[0]),np.mean(point1[1],point2[1])]    
                 co_l=co_l-1
             ch_l=ch_l-1
         i=i-1
     child_i=child_i-1
-         
+
+#POINTS AND LINES       
 child_i=len(children)-1
 i=child_i-1
 while child_i > 0: #grab a child
@@ -363,7 +365,7 @@ while child_i > 0: #grab a child
     ch_l = len(child)-1
     i = len(children)-1
     while i>=0: #grab other children
-        if i == child_i:
+        if i == child_i: #skip if referring to same child
             i=i-1
             continue
         compare=children[i]
@@ -371,7 +373,7 @@ while child_i > 0: #grab a child
         while ch_l>=0:
             point1=child[ch_l]
             while co_l>=0:
-                
+                if check_point_intersects(point1,[compare[co_l],compare[(co_l-1)%len()]])
                 co_l=co_l-1
             ch_l=ch_l-1
         i=i-1
